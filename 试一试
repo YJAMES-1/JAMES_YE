@@ -1,0 +1,101 @@
+#cnn卷积神经网络来做cifar10
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+from batch_data import *
+import numpy as np
+import matplotlib.image as plimg
+from PIL import Image
+import pickle as p
+label={0:'airplane',1:'car',2:'bird',3:'cat',4:'beer',5:'dog',6:'frog',7:'house',8:'ship',9:'trunk'}
+filename='test_batch'
+with open(filename, 'rb')as f:
+    datadict = p.load(f, encoding='latin1')
+    X = datadict['data']
+    print(X.shape)
+    Z=X
+    Y1 = datadict['labels']
+    imgX = X.reshape(10000, 3, 32, 32)
+    Y1 = np.array(Y1)
+    print(X.shape)
+
+#变量赋值和初始化:
+#A0=tf.placeholder(tf.float32,shape=[m,pic_hight,pic_weight,colour_num])
+#Y=tf.placeholder(tf.int32)
+A1=tf.placeholder(tf.float32,shape=[m,3072])
+Y=tf.placeholder(tf.int32)
+A0=tf.reshape(A1,[m,pic_hight,pic_weight,colour_num])
+A0=A0/255
+
+#卷积和池化层:
+#conv1 (inputs, out_size, ksize, strides=(1, 1))
+conv1_layer = tf.layers.conv2d(\
+              A0, 64, 5, padding = 'SAME', activation = tf.nn.relu)
+ 
+#pool1 (inputs, ksize, strides)
+pool1_layer = tf.layers.max_pooling2d(\
+              conv1_layer, [3,3], [2,2], padding = 'SAME')
+ 
+#conv2
+conv2_layer = tf.layers.conv2d(\
+              pool1_layer, 64, 5, padding = 'SAME', activation = tf.nn.relu)
+ 
+#pool2
+pool2_layer = tf.layers.max_pooling2d(\
+              conv2_layer, [3,3], [2,2], padding = 'SAME')
+ 
+#layer flat
+flat_layer = tf.layers.flatten(pool2_layer)
+ 
+#fc1 (inputs, out_size)
+fc1_layer = tf.layers.dense(flat_layer, 384, activation=tf.nn.relu)
+ 
+#dropout
+dropout_layer = tf.layers.dropout(fc1_layer, True)
+
+#fc2 (inputs, out_size)
+fc2_layer = tf.layers.dense(dropout_layer, 192, activation=tf.nn.relu)
+ 
+#dropout
+dropout_layer = tf.layers.dropout(fc2_layer, True)
+ 
+#fc2
+fc2_layer = tf.layers.dense(dropout_layer, 10)
+
+
+#训练与代价函数
+answ=tf.one_hot(Y,10)
+cost = tf.reduce_mean(\
+        tf.nn.softmax_cross_entropy_with_logits(\
+                logits = fc2_layer, labels = answ))
+#train=tf.train.GradientDescentOptimizer(alpha).minimize(cost)
+train=tf.train.AdamOptimizer().minimize(cost)
+
+init=tf.global_variables_initializer()
+ERROR=[]
+sess=tf.Session()
+sess.run(init)
+#主程序
+for tex in range(TEX):
+    acc_T=0
+    for mini_num in range(mini_batch_num):
+        sess.run(train, feed_dict={A1:cnn_A[mini_num*m:(mini_num+1)*m]\
+                                   ,Y:cnn_Y[mini_num*m:(mini_num+1)*m]})
+        if (mini_num+1)/watch_cost_break==(mini_num+1)//watch_cost_break:
+            error=sess.run(cost,feed_dict={A1:cnn_A[mini_num*m:(mini_num+1)*m]\
+                                   ,Y:cnn_Y[mini_num*m:(mini_num+1)*m]})
+        
+            print('第'+str(tex+1)+'次训练,第'\
+                 +str(mini_num+1)+'组learning;  误差:'+str('%.4f' % error))#+\
+                #'  验证集随机正确率:'+str('%.0f' % acc_random_P)+'%'+\
+                #'  测试集随机正确率'+str('%.0f' % acc_random_T)+'%')
+    for kd in range(10000//m):
+        pro=sess.run(fc2_layer, feed_dict={A1:cnn_Prove_A[kd*m:(kd+1)*m]\
+                                   ,Y:cnn_Prove_Y[kd*m:(kd+1)*m]})
+        pro1=np.argmax(pro,1)
+        for kd1 in range(m):
+            if pro1[kd1]==cnn_Prove_Y[kd*m:(kd+1)*m][kd1]:
+                acc_T+=1    
+    acc_T/=100
+    print('第'+str(tex+1)+'次训练'+'  验证集正确率为:'\
+          +str('%.0f' % acc_T)+'%')
